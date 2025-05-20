@@ -24,6 +24,7 @@ import {
   Description as DescriptionIcon,
   Assignment as AssignmentIcon,
   AccountCircle,
+  CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
 import logo from '../img/logo.png';
 // import "@fontsource/montserrat/400.css";
@@ -56,8 +57,9 @@ function Layout() {
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
     { text: 'Tạo đơn mới', icon: <AddIcon />, path: '/create-request' },
-    { text: 'Đơn của tôi', icon: <DescriptionIcon />, path: '/my-requests' },
-    { text: 'Đơn cần duyệt', icon: <AssignmentIcon />, path: '/pending-approvals' },
+    { text: 'Đơn chờ ký', icon: <DescriptionIcon />, path: '/my-requests' },
+    { text: 'Đơn đang ký', icon: <AssignmentIcon />, path: '/pending-approvals' },
+    { text: 'Đơn đã ký', icon: <CheckCircleIcon />, path: '/request-history' },
   ];
 
   const drawer = (

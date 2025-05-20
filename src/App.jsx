@@ -15,7 +15,7 @@ import CreateRequest from './pages/CreateRequest';
 import RequestDetails from './pages/RequestDetails';
 import MyRequests from './pages/MyRequests';
 import PendingApprovals from './pages/PendingApprovals';
-
+import RequestHistory from './pages/RequestHistory';
 const theme = createTheme({
   palette: {
     primary: {
@@ -65,6 +65,7 @@ function App() {
             <Route path="request/:id" element={<RequestDetails />} />
             <Route path="my-requests" element={<MyRequests />} />
             <Route path="pending-approvals" element={<PendingApprovals />} />
+            <Route path="request-history" element={<RequestHistory />} />
           </Route>
         </Routes>
       </Router>
