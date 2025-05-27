@@ -57,9 +57,9 @@ function Layout() {
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
     { text: 'Tạo đơn mới', icon: <AddIcon />, path: '/create-request' },
-    { text: 'Đơn chờ ký', icon: <DescriptionIcon />, path: '/my-requests' },
-    { text: 'Đơn đang ký', icon: <AssignmentIcon />, path: '/pending-approvals' },
+    { text: 'Đơn chờ ký', icon: <AssignmentIcon />, path: '/pending-approvals' },
     { text: 'Đơn đã ký', icon: <CheckCircleIcon />, path: '/request-history' },
+    { text: 'Đơn đã hủy', icon: <DescriptionIcon />, path: '/cancelled-requests' },
   ];
 
   const drawer = (
