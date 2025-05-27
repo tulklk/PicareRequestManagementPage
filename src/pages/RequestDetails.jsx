@@ -16,6 +16,16 @@ import {
   ListItemAvatar,
   Avatar,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormControl,
+  FormLabel,
 } from '@mui/material';
 import {
   Description as DescriptionIcon,
@@ -23,7 +33,6 @@ import {
   Pending as PendingIcon,
   Download as DownloadIcon,
 } from '@mui/icons-material';
-import SignatureCanvas from 'react-signature-canvas';
 import { toast } from 'react-toastify';
 
 // Mock data - replace with actual API calls
@@ -62,14 +71,45 @@ const mockRequest = {
   ],
 };
 
+// Mock signature images - replace with actual signature images
+const signatureImages = [
+  {
+    id: 1,
+    name: 'Chữ ký 1',
+    url: '/signatures/signature1.png',
+  },
+  {
+    id: 2,
+    name: 'Chữ ký 2',
+    url: '/signatures/signature2.png',
+  },
+  {
+    id: 3,
+    name: 'Chữ ký 3',
+    url: '/signatures/signature3.png',
+  },
+];
+
+// Predefined rejection reasons
+const rejectionReasons = [
+  'Thiếu thông tin cần thiết',
+  'Không đúng quy định',
+  'Không đủ điều kiện',
+  'Không phù hợp với chính sách công ty',
+  'Khác',
+];
+
 function RequestDetails() {
   const { id } = useParams();
-  const [signatureRef] = useState(React.createRef());
+  const [selectedSignature, setSelectedSignature] = useState(null);
   const [currentUser] = useState({ role: 'Trưởng phòng', name: 'Trần Văn B' });
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [selectedReason, setSelectedReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
 
   const handleApprove = async () => {
-    if (signatureRef.current?.isEmpty()) {
-      toast.error('Vui lòng ký đơn');
+    if (!selectedSignature) {
+      toast.error('Vui lòng chọn chữ ký');
       return;
     }
     try {
@@ -81,9 +121,23 @@ function RequestDetails() {
   };
 
   const handleReject = async () => {
+    if (!selectedReason) {
+      toast.error('Vui lòng chọn lý do từ chối');
+      return;
+    }
+
+    if (selectedReason === 'Khác' && !customReason.trim()) {
+      toast.error('Vui lòng nhập lý do từ chối');
+      return;
+    }
+
     try {
-      // Implement reject logic here
+      const rejectionReason = selectedReason === 'Khác' ? customReason : selectedReason;
+      // Implement reject logic here with rejectionReason
       toast.success('Đã từ chối đơn!');
+      setRejectDialogOpen(false);
+      setSelectedReason('');
+      setCustomReason('');
     } catch (error) {
       toast.error('Có lỗi xảy ra khi từ chối đơn');
     }
@@ -159,7 +213,7 @@ function RequestDetails() {
               Trạng thái
             </Typography>
             <Chip
-              label={mockRequest.status === 'pending' ? 'Đang chờ duyệt' : 'Đã duyệt'}
+              label={mockRequest.status === 'pending' ? 'Đang chờ ký' : 'Đã ký'}
               color={mockRequest.status === 'pending' ? 'warning' : 'success'}
               sx={{ mb: 2 }}
             />
@@ -202,26 +256,40 @@ function RequestDetails() {
           {mockRequest.status === 'pending' && currentUser.role === 'Trưởng phòng' && (
             <Grid item xs={12}>
               <Typography variant="h6" gutterBottom>
-                Ký duyệt
+                Chọn chữ ký
               </Typography>
-              <Paper
-                variant="outlined"
-                sx={{
-                  p: 2,
-                  mt: 2,
-                  border: '1px solid #ccc',
-                  borderRadius: 1,
-                }}
-              >
-                <SignatureCanvas
-                  ref={signatureRef}
-                  canvasProps={{
-                    width: 500,
-                    height: 200,
-                    className: 'signature-canvas',
-                  }}
-                />
-              </Paper>
+              <Grid container spacing={2} sx={{ mt: 2 }}>
+                {signatureImages.map((signature) => (
+                  <Grid item xs={12} sm={4} key={signature.id}>
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 2,
+                        cursor: 'pointer',
+                        border: selectedSignature?.id === signature.id ? '2px solid #2CA068' : '1px solid #ccc',
+                        '&:hover': {
+                          borderColor: '#2CA068',
+                        },
+                      }}
+                      onClick={() => setSelectedSignature(signature)}
+                    >
+                      <img
+                        src={signature.url}
+                        alt={signature.name}
+                        style={{
+                          width: '100%',
+                          height: 'auto',
+                          maxHeight: '150px',
+                          objectFit: 'contain',
+                        }}
+                      />
+                      <Typography variant="body2" align="center" sx={{ mt: 1 }}>
+                        {signature.name}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
               <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                 <Button
                   variant="contained"
@@ -233,7 +301,7 @@ function RequestDetails() {
                 <Button
                   variant="contained"
                   color="error"
-                  onClick={handleReject}
+                  onClick={() => setRejectDialogOpen(true)}
                 >
                   Từ chối
                 </Button>
@@ -242,6 +310,67 @@ function RequestDetails() {
           )}
         </Grid>
       </Paper>
+
+      {/* Rejection Dialog */}
+      <Dialog
+        open={rejectDialogOpen}
+        onClose={() => {
+          setRejectDialogOpen(false);
+          setSelectedReason('');
+          setCustomReason('');
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Xác nhận từ chối đơn</DialogTitle>
+        <DialogContent>
+          <FormControl component="fieldset" sx={{ mt: 2, width: '100%' }}>
+            <FormLabel component="legend">Lý do từ chối</FormLabel>
+            <RadioGroup
+              value={selectedReason}
+              onChange={(e) => setSelectedReason(e.target.value)}
+            >
+              {rejectionReasons.map((reason) => (
+                <FormControlLabel
+                  key={reason}
+                  value={reason}
+                  control={<Radio />}
+                  label={reason}
+                />
+              ))}
+            </RadioGroup>
+            {selectedReason === 'Khác' && (
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+                placeholder="Nhập lý do từ chối"
+                sx={{ mt: 2 }}
+              />
+            )}
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setRejectDialogOpen(false);
+              setSelectedReason('');
+              setCustomReason('');
+            }}
+          >
+            Hủy
+          </Button>
+          <Button
+            onClick={handleReject}
+            color="error"
+            variant="contained"
+          >
+            Xác nhận từ chối
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

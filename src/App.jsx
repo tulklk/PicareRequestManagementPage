@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { ToastContainer } from 'react-toastify';
@@ -13,9 +13,16 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import CreateRequest from './pages/CreateRequest';
 import RequestDetails from './pages/RequestDetails';
-import MyRequests from './pages/MyRequests';
+import CancelledRequests from './pages/CancelledRequests';
 import PendingApprovals from './pages/PendingApprovals';
 import RequestHistory from './pages/RequestHistory';
+
+const router = {
+  future: {
+    v7_relativeSplatPath: true
+  }
+};
+
 const theme = createTheme({
   palette: {
     primary: {
@@ -56,16 +63,17 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
+      <Router {...router}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="create-request" element={<CreateRequest />} />
             <Route path="request/:id" element={<RequestDetails />} />
-            <Route path="my-requests" element={<MyRequests />} />
+            <Route path="cancelled-requests" element={<CancelledRequests />} />
             <Route path="pending-approvals" element={<PendingApprovals />} />
             <Route path="request-history" element={<RequestHistory />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
       </Router>
