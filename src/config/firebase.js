@@ -8,15 +8,18 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyCW5zfmZCohJktWJPWDTlQ2OemrzcL0EA8",
-  authDomain: "paper-management-e5968.firebaseapp.com",
-  projectId: "paper-management-e5968",
-  storageBucket: "paper-management-e5968.firebasestorage.app",
-  messagingSenderId: "869098794554",
-  appId: "1:869098794554:web:05f6d86fae0d04c4690f03",
-  measurementId: "G-XELVYRLW69"
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+const storageApp = initializeApp(firebaseConfig, "storage");
+const authApp = initializeApp(firebaseConfig, "auth");
+
+export const storage = getStorage(storageApp);
+export const auth = getAuth(authApp);
+export const provider = new GoogleAuthProvider();
