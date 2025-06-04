@@ -66,17 +66,18 @@ function App() {
       <CssBaseline />
       <Router {...router}>
         <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="create-request" element={<CreateRequest />} />
-            <Route path="request/:id" element={<RequestDetails />} />
-            <Route path="cancelled-requests" element={<CancelledRequests />} />
-            <Route path="pending-approvals" element={<PendingApprovals />} />
-            <Route path="request-history" element={<RequestHistory />} />
-            <Route path="profile" element={<Profile />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+          <Route element={<Layout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/create-request" element={<CreateRequest />} />
+            <Route path="/request/:id" element={<RequestDetails />} />
+            <Route path="/cancelled-requests" element={<CancelledRequests />} />
+            <Route path="/pending-approvals" element={<PendingApprovals />} />
+            <Route path="/request-history" element={<RequestHistory />} />
+            <Route path="/profile" element={<Profile />} />
           </Route>
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
       <ToastContainer />

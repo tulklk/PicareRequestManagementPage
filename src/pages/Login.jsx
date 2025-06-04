@@ -16,6 +16,7 @@ import {
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import logo from '../img/logo.png';
+import { toast } from 'react-toastify';
 
 function Login() {
   const [tabValue, setTabValue] = useState(0);
@@ -32,7 +33,10 @@ function Login() {
   const handleSubmit = (event) => {
     event.preventDefault();
     // TODO: Implement login/register logic
-    navigate('/');
+    console.log('Login/Register attempt');
+    // For now, simply navigate to the dashboard after submission
+    navigate('/dashboard');
+    toast.success('Đăng nhập thành công!');
   };
 
   return (

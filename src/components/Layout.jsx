@@ -60,7 +60,7 @@ function Layout() {
   };
 
   const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Tạo đơn mới', icon: <AddIcon />, path: '/create-request' },
     { text: 'Đơn chờ ký', icon: <AssignmentIcon />, path: '/pending-approvals' },
     { text: 'Đơn đã ký', icon: <CheckCircleIcon />, path: '/request-history' },
