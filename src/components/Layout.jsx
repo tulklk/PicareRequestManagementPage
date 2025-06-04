@@ -49,6 +49,11 @@ function Layout() {
     setAnchorEl(null);
   };
 
+  const handleProfileClick = () => {
+    handleProfileMenuClose();
+    navigate('/profile');
+  };
+
   const handleLogout = () => {
     handleProfileMenuClose();
     navigate('/login');
@@ -144,7 +149,7 @@ function Layout() {
             open={Boolean(anchorEl)}
             onClose={handleProfileMenuClose}
           >
-            <MenuItem onClick={handleProfileMenuClose}>Hồ sơ</MenuItem>
+            <MenuItem onClick={handleProfileClick}>Hồ sơ</MenuItem>
             <MenuItem onClick={handleLogout}>Đăng xuất</MenuItem>
           </Menu>
         </Toolbar>

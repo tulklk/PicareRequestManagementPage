@@ -16,6 +16,7 @@ import RequestDetails from './pages/RequestDetails';
 import CancelledRequests from './pages/CancelledRequests';
 import PendingApprovals from './pages/PendingApprovals';
 import RequestHistory from './pages/RequestHistory';
+import Profile from './pages/Profile';
 
 const router = {
   future: {
@@ -73,6 +74,7 @@ function App() {
             <Route path="cancelled-requests" element={<CancelledRequests />} />
             <Route path="pending-approvals" element={<PendingApprovals />} />
             <Route path="request-history" element={<RequestHistory />} />
+            <Route path="profile" element={<Profile />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
