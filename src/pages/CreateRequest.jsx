@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -9,11 +9,6 @@ import {
   Step,
   StepLabel,
   Grid,
-  Radio,
-  RadioGroup,
-  FormControlLabel,
-  FormControl,
-  FormLabel,
   List,
   ListItem,
   ListItemText,
@@ -21,21 +16,14 @@ import {
   Select,
   MenuItem,
   InputLabel,
+  FormControl,
 } from '@mui/material';
 import { Delete as DeleteIcon, AddCircleOutline as AddCircleOutlineIcon } from '@mui/icons-material';
 import { toast } from 'react-toastify';
+import { uploadToGoogleDrive } from '../utils/upload';
+import axios from 'axios';
 
 const steps = ['Upload File PDF', 'Chọn người ký', 'Xác nhận'];
-
-// Danh sách tất cả người ký tiềm năng
-const allSigners = [
-  { id: 1, name: 'Nguyễn Văn A (Trưởng phòng)', signature: '/signatures/signature1.png' },
-  { id: 2, name: 'Trần Văn B (Trưởng phòng)', signature: '/signatures/signature2.png' },
-  { id: 3, name: 'Lê Văn C (Giám đốc)', signature: '/signatures/signature3.png' },
-  { id: 4, name: 'Phạm Văn D (Giám đốc)', signature: '/signatures/signature4.png' },
-  { id: 5, name: 'Hoàng Văn E (Kế toán)', signature: '/signatures/signature5.png' },
-  { id: 6, name: 'Đỗ Văn F (Kế toán)', signature: '/signatures/signature6.png' },
-];
 
 function CreateRequest() {
   const [activeStep, setActiveStep] = useState(0);
@@ -44,30 +32,200 @@ function CreateRequest() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedSignatures, setSelectedSignatures] = useState({});
-  const [requestType, setRequestType] = useState('');
-  const [signatureStepsCount, setSignatureStepsCount] = useState(1); // State for dynamic number of signature steps
+  const [signatureStepsCount, setSignatureStepsCount] = useState(1);
+  const [approvers, setApprovers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [driveFileUrl, setDriveFileUrl] = useState(null);
 
-  const handleFileChange = (event) => {
-    const selectedFile = event.target.files[0];
-    if (selectedFile && selectedFile.type === 'application/pdf') {
-      setFile(selectedFile);
-      toast.success('File PDF đã được chọn thành công!');
-    } else {
-      toast.error('Vui lòng chọn file PDF');
-      event.target.value = null; // Reset input
+  // Fetch approvers only when moving to step 1
+  const fetchApprovers = async () => {
+    try {
+      console.log('Step 5: Fetching list of approvers...');
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No token found');
+        toast.error('Vui lòng đăng nhập để tiếp tục');
+        return;
+      }
+
+      const response = await axios.get('http://localhost:8080/user/view', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      console.log('Step 5 completed: Approvers list fetched successfully');
+
+      if (Array.isArray(response.data)) {
+        setApprovers(response.data);
+      } else {
+        console.error('Invalid approvers data format:', response.data);
+        setApprovers([]);
+        toast.error('Định dạng dữ liệu người ký không hợp lệ');
+      }
+    } catch (error) {
+      console.error('Error fetching approvers:', error);
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        console.error('Error status:', error.response.status);
+        if (error.response.status === 401) {
+          toast.error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại');
+        } else {
+          toast.error('Không thể tải danh sách người ký');
+        }
+      } else {
+        toast.error('Không thể kết nối đến server');
+      }
+      setApprovers([]);
     }
   };
 
-  const handleAttachmentChange = (event) => {
+  const handleFileChange = async (event) => {
+    const selectedFile = event.target.files[0];
+    if (selectedFile && selectedFile.type === 'application/pdf') {
+      try {
+        setLoading(true);
+        console.log('Step 1: User selected file:', selectedFile.name);
+        
+        // Step 2: Upload to Google Drive
+        console.log('Step 2: Uploading file to Google Drive...');
+        const fileUrl = await uploadToGoogleDrive(selectedFile);
+        if (!fileUrl) {
+          throw new Error('Failed to get file URL from Google Drive');
+        }
+        console.log('Step 2 completed: File uploaded to Drive successfully');
+        setDriveFileUrl(fileUrl);
+        
+        // Step 3: Save file info to database
+        console.log('Step 3: Saving file info to database...');
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+
+        const savedFile = await axios.post('http://localhost:8080/attachment/upload-paper', 
+          {
+            url: fileUrl,
+            fileName: selectedFile.name
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        console.log('Server response:', savedFile.data);
+        
+        if (!savedFile.data || !savedFile.data.url) {
+          throw new Error('Invalid response from server');
+        }
+
+        setFile({
+          file: selectedFile,
+          url: savedFile.data.url,
+          id: savedFile.data.id,
+          fileName: savedFile.data.fileName,
+          owner: savedFile.data.owner,
+          apiData: savedFile.data
+        });
+        console.log('Step 3 completed: File info saved to database');
+        toast.success('File PDF đã được tải lên thành công!');
+
+        // Step 5: Fetch approvers immediately after file upload
+        console.log('Step 5: Fetching list of approvers...');
+        await fetchApprovers();
+      } catch (error) {
+        console.error('Error in file upload process:', error);
+        if (error.response) {
+          console.error('Error response:', error.response.data);
+          console.error('Error status:', error.response.status);
+          toast.error(`Lỗi từ server: ${error.response.data.message || 'Không thể tải lên file PDF'}`);
+        } else if (error.request) {
+          console.error('No response received:', error.request);
+          toast.error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
+        } else {
+          console.error('Error message:', error.message);
+          toast.error(`Lỗi: ${error.message || 'Không thể tải lên file PDF'}`);
+        }
+      } finally {
+        setLoading(false);
+        event.target.value = null;
+      }
+    } else {
+      toast.error('Vui lòng chọn file PDF');
+      event.target.value = null;
+    }
+  };
+
+  const handleAttachmentChange = async (event) => {
     const selectedFiles = Array.from(event.target.files);
-    const newAttachments = selectedFiles.map(file => ({
-      id: Date.now() + Math.random(),
-      file: file,
-      name: file.name
-    }));
-    setAttachments(prev => [...prev, ...newAttachments]);
-    toast.success('File đính kèm đã được thêm!');
-    event.target.value = null; // Reset input
+    try {
+      setLoading(true);
+      console.log('Starting attachment uploads:', selectedFiles.map(f => f.name));
+      
+      const uploadPromises = selectedFiles.map(async (file) => {
+        console.log('Uploading attachment:', file.name);
+        
+        // Step 1: Upload to Google Drive first
+        console.log('Uploading to Google Drive...');
+        const fileUrl = await uploadToGoogleDrive(file);
+        if (!fileUrl) {
+          throw new Error('Failed to get file URL from Google Drive');
+        }
+        console.log('Attachment uploaded to Drive successfully, URL:', fileUrl);
+        
+        // Step 2: Save file info to database only after successful Drive upload
+        console.log('Saving file info to database...');
+        const savedFile = await axios.post('http://localhost:8080/attachment/upload-paper', 
+          {
+            url: fileUrl,
+            fileName: file.name
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (!savedFile.data || !savedFile.data.id) {
+          throw new Error('Failed to save file information to database');
+        }
+        console.log('File info saved to database:', savedFile.data);
+        
+        return {
+          id: savedFile.data.id,
+          file: file,
+          name: file.name,
+          url: fileUrl,
+          apiData: savedFile.data
+        };
+      });
+
+      const newAttachments = await Promise.all(uploadPromises);
+      console.log('All attachments uploaded successfully:', newAttachments);
+      
+      setAttachments(prev => [...prev, ...newAttachments]);
+      toast.success('File đính kèm đã được tải lên thành công!');
+    } catch (error) {
+      console.error('Error uploading attachments:', error);
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        console.error('Error status:', error.response.status);
+        toast.error(`Lỗi từ server: ${error.response.data.message || 'Không thể tải lên file đính kèm'}`);
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+        toast.error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
+      } else {
+        console.error('Error message:', error.message);
+        toast.error(`Lỗi: ${error.message || 'Không thể tải lên file đính kèm'}`);
+      }
+    } finally {
+      setLoading(false);
+      event.target.value = null;
+    }
   };
 
   const handleRemoveAttachment = (id) => {
@@ -79,37 +237,42 @@ function CreateRequest() {
     setSignatureStepsCount(prevCount => prevCount + 1);
   };
 
-  const handleSignatureSelect = (stepIndex, signerId) => {
-    const signer = allSigners.find(s => s.id === signerId);
-    setSelectedSignatures(prev => ({
-      ...prev,
-      [stepIndex]: signer
-    }));
+  const handleSignatureSelect = (stepIndex, approverId) => {
+    console.log('Selecting approver:', { stepIndex, approverId });
+    const approver = approvers.find(a => a.id === approverId);
+    console.log('Found approver:', approver);
+    
+    if (approver) {
+      setSelectedSignatures(prev => ({
+        ...prev,
+        [stepIndex]: approver
+      }));
+    } else {
+      console.error('Approver not found for ID:', approverId);
+      toast.error('Không tìm thấy người ký');
+    }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (activeStep === 0) {
-      if (!requestType) {
-        toast.error('Vui lòng chọn loại đơn');
+      if (!file || !file.url) {
+        toast.error('Vui lòng chọn và đợi file PDF tải lên hoàn tất');
         return;
       }
-      if (!file) {
-        toast.error('Vui lòng chọn file PDF');
-        return;
-      }
-    }
-
-    // Validation for signature steps
-    if (activeStep === 1) {
+      // Move to next step
+      setActiveStep((prevStep) => prevStep + 1);
+    } else if (activeStep === 1) {
+      // Validate signature selections
       for (let i = 0; i < signatureStepsCount; i++) {
         if (!selectedSignatures[i]) {
            toast.error(`Vui lòng chọn người ký cho Bước ${i + 1}`);
            return;
         }
       }
+      setActiveStep((prevStep) => prevStep + 1);
+    } else if (activeStep === 2) {
+      setActiveStep((prevStep) => prevStep + 1);
     }
-
-    setActiveStep((prevStep) => prevStep + 1);
   };
 
   const handleBack = () => {
@@ -117,43 +280,54 @@ function CreateRequest() {
   };
 
   const handleSubmit = async () => {
-    // Final validation before submit (optional, but good practice)
     if (Object.keys(selectedSignatures).length < signatureStepsCount) {
-       toast.error('Vui lòng chọn người ký cho tất cả các bước');
-       return;
-    }
-    // You might want to check if there are any gaps in selected steps (e.g., step 0 and step 2 selected, but not step 1)
-    for (let i = 0; i < signatureStepsCount; i++) {
-        if (!selectedSignatures[i]) {
-             toast.error('Vui lòng chọn người ký cho tất cả các bước theo thứ tự');
-             return;
-        }
+      toast.error('Vui lòng chọn người ký cho tất cả các bước');
+      return;
     }
 
+    for (let i = 0; i < signatureStepsCount; i++) {
+      if (!selectedSignatures[i]) {
+        toast.error('Vui lòng chọn người ký cho tất cả các bước theo thứ tự');
+        return;
+      }
+    }
 
     try {
-      // Implement submit logic here using file, attachments, title, description, selectedSignatures, requestType
-      console.log('Submitting Request:', {
-        file: file?.name,
-        attachments: attachments.map(att => att.name),
-        title,
-        description,
-        selectedSignatures: Object.values(selectedSignatures), // Send selected signers as an array
-        requestType,
-      });
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      const paperRequest = {
+        paperId: file.apiData.id,
+        donDinhKemIdList: attachments.map(att => att.apiData.id),
+        approverIdList: Object.values(selectedSignatures).map(signer => signer.id)
+      };
+
+      const response = await axios.post('http://localhost:8080/paper/create', 
+        paperRequest,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
       toast.success('Đơn đã được tạo thành công!');
-      // Reset form (optional)
+      
+      // Reset form
       setActiveStep(0);
       setFile(null);
       setAttachments([]);
       setTitle('');
       setDescription('');
       setSelectedSignatures({});
-      setRequestType('');
-      setSignatureStepsCount(1); // Reset signature steps count
-
+      setSignatureStepsCount(1);
+      setDriveFileUrl(null);
     } catch (error) {
+      console.error('Error creating paper:', error);
       toast.error('Có lỗi xảy ra khi tạo đơn');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -162,33 +336,6 @@ function CreateRequest() {
       case 0:
         return (
           <Box sx={{ mt: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Chọn loại đơn
-            </Typography>
-            <FormControl component="fieldset" sx={{ mb: 3 }}>
-              <FormLabel component="legend">Loại đơn</FormLabel>
-              <RadioGroup
-                value={requestType}
-                onChange={(e) => setRequestType(e.target.value)}
-              >
-                <FormControlLabel 
-                  value="tam_ung" 
-                  control={<Radio />} 
-                  label="Đơn đề nghị tạm ứng" 
-                />
-                <FormControlLabel 
-                  value="thanh_toan" 
-                  control={<Radio />} 
-                  label="Đơn thanh toán" 
-                />
-                <FormControlLabel 
-                  value="xin_nghi" 
-                  control={<Radio />} 
-                  label="Đơn xin nghỉ" 
-                />
-              </RadioGroup>
-            </FormControl>
-
             <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
               Upload File Trình Ký
             </Typography>
@@ -198,19 +345,20 @@ function CreateRequest() {
               id="pdf-file"
               type="file"
               onChange={handleFileChange}
+              disabled={loading}
             />
             <label htmlFor="pdf-file">
               <Button 
                 variant="contained" 
                 component="span"
-                disabled={!requestType}
+                disabled={loading}
               >
-                Chọn File
+                {loading ? 'Đang tải lên...' : 'Chọn File'}
               </Button>
             </label>
             {file && (
               <Typography variant="body2" sx={{ mt: 1 }}>
-                Đã chọn: {file.name}
+                Đã chọn: {file.file.name}
               </Typography>
             )}
 
@@ -224,14 +372,15 @@ function CreateRequest() {
               type="file"
               multiple
               onChange={handleAttachmentChange}
+              disabled={loading}
             />
             <label htmlFor="attachment-files">
               <Button 
                 variant="outlined" 
                 component="span"
-                disabled={!requestType}
+                disabled={loading}
               >
-                Thêm File Đính Kèm
+                {loading ? 'Đang tải lên...' : 'Thêm File Đính Kèm'}
               </Button>
             </label>
             {attachments.length > 0 && (
@@ -244,6 +393,7 @@ function CreateRequest() {
                         edge="end" 
                         aria-label="delete"
                         onClick={() => handleRemoveAttachment(attachment.id)}
+                        disabled={loading}
                       >
                         <DeleteIcon />
                       </IconButton>
@@ -273,13 +423,20 @@ function CreateRequest() {
                       label={`Bước ${index + 1}`}
                       onChange={(e) => handleSignatureSelect(index, e.target.value)}
                     >
-                      <MenuItem value=""><em>Chọn người ký</em></MenuItem>
-                      {allSigners.map((signer) => (
-                        <MenuItem key={signer.id} value={signer.id}>
-                          {signer.name}
+                      <MenuItem value="">
+                        <em>Chọn người ký</em>
+                      </MenuItem>
+                      {Array.isArray(approvers) && approvers.length > 0 ? (
+                        approvers.map((approver) => (
+                          <MenuItem key={approver.id} value={approver.id}>
+                            {approver.name} ({approver.role})
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem disabled>
+                          <em>Không có người ký</em>
                         </MenuItem>
-                      ))
-                      }
+                      )}
                     </Select>
                   </FormControl>
                 </Grid>
@@ -289,6 +446,7 @@ function CreateRequest() {
               startIcon={<AddCircleOutlineIcon />}
               onClick={handleAddSignatureStep}
               sx={{ mt: 2 }}
+              disabled={loading}
             >
               Thêm bước ký
             </Button>
@@ -322,7 +480,7 @@ function CreateRequest() {
               </Grid>
               <Grid item xs={12}>
                 <Typography variant="subtitle1">
-                  File trình ký: {file?.name}
+                  File trình ký: {file?.file.name}
                 </Typography>
               </Grid>
               {attachments.length > 0 && (
@@ -349,16 +507,9 @@ function CreateRequest() {
                         <Typography variant="subtitle2" gutterBottom>
                           Bước {index + 1}:
                         </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <img
-                            src={selectedSignatures[index].signature}
-                            alt={selectedSignatures[index].name}
-                            style={{ maxWidth: '100px', height: 'auto' }}
-                          />
-                          <Typography variant="body2">
-                            {selectedSignatures[index].name}
-                          </Typography>
-                        </Box>
+                        <Typography variant="body2">
+                          {selectedSignatures[index].name} ({selectedSignatures[index].role})
+                        </Typography>
                       </Box>
                    )
                 ))}
@@ -382,26 +533,32 @@ function CreateRequest() {
             <Step key={label}>
               <StepLabel>{label}</StepLabel>
             </Step>
-          ))
-          }
+          ))}
         </Stepper>
         {renderStepContent(activeStep)}
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
           {activeStep !== 0 && (
-            <Button onClick={handleBack} sx={{ mr: 1 }}>
+            <Button onClick={handleBack} sx={{ mr: 1 }} disabled={loading}>
               Quay lại
             </Button>
           )}
           {activeStep === steps.length - 1 ? (
-            <Button variant="contained" onClick={handleSubmit}>
-              Gửi đơn
+            <Button 
+              variant="contained" 
+              onClick={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? 'Đang xử lý...' : 'Gửi đơn'}
             </Button>
           ) : (
-              <Button variant="contained" onClick={handleNext}>
-                Tiếp tục
-              </Button>
-            )
-          }
+            <Button 
+              variant="contained" 
+              onClick={handleNext}
+              disabled={loading}
+            >
+              Tiếp tục
+            </Button>
+          )}
         </Box>
       </Paper>
     </Box>

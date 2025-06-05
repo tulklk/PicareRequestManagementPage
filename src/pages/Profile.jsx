@@ -13,6 +13,7 @@ import { PhotoCamera } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import api from '../config/axios';
 import axios from 'axios';
+import { uploadToGoogleDrive } from '../utils/upload';
 
 function Profile() {
   const [signature, setSignature] = useState(null);
@@ -72,15 +73,76 @@ function Profile() {
     }));
   };
 
-  const handleSignatureUpload = (event) => {
+  const handleSignatureUpload = async (event) => {
     const file = event.target.files[0];
-    if (file) {
-      setSignature(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result);
-      };
-      reader.readAsDataURL(file);
+    if (file && file.type === 'application/pdf') {
+      try {
+        setLoading(true);
+        console.log('Step 1: Uploading signature to Google Drive...');
+        
+        // Step 1: Upload to Google Drive
+        const fileUrl = await uploadToGoogleDrive(file);
+        if (!fileUrl) {
+          throw new Error('Failed to get file URL from Google Drive');
+        }
+        console.log('Step 1 completed: Signature uploaded to Drive successfully');
+        
+        // Step 2: Save signature info to database
+        console.log('Step 2: Saving signature info to database...');
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+
+        const savedSignature = await axios.post('http://localhost:8080/attachment/upload-sign', 
+          {
+            url: fileUrl,
+            fileName: file.name
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        console.log('Server response:', savedSignature.data);
+        
+        if (!savedSignature.data || !savedSignature.data.url) {
+          throw new Error('Invalid response from server');
+        }
+
+        // Update preview and state
+        setSignature(file);
+        setPreviewUrl(savedSignature.data.url);
+        setUser(prev => ({
+          ...prev,
+          chuKy: savedSignature.data.url
+        }));
+
+        console.log('Step 2 completed: Signature info saved to database');
+        toast.success('Chữ ký đã được tải lên thành công!');
+      } catch (error) {
+        console.error('Error uploading signature:', error);
+        if (error.response) {
+          console.error('Error response:', error.response.data);
+          console.error('Error status:', error.response.status);
+          toast.error(`Lỗi từ server: ${error.response.data.message || 'Không thể tải lên chữ ký'}`);
+        } else if (error.request) {
+          console.error('No response received:', error.request);
+          toast.error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
+        } else {
+          console.error('Error message:', error.message);
+          toast.error(`Lỗi: ${error.message || 'Không thể tải lên chữ ký'}`);
+        }
+      } finally {
+        setLoading(false);
+        event.target.value = null;
+      }
+    } else {
+      toast.error('Vui lòng chọn file PDF');
+      event.target.value = null;
     }
   };
 
@@ -162,7 +224,7 @@ function Profile() {
                   <input
                     type="file"
                     hidden
-                    accept="image/*"
+                    accept=".pdf"
                     onChange={handleSignatureUpload}
                   />
                 </Button>
