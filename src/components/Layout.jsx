@@ -121,7 +121,6 @@ function Layout() {
           >
             <MenuIcon />
           </IconButton>
-          {/* <img src={logo} alt="Picare Logo" style={{ height: 38, marginRight: 16 }} /> */}
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontWeight: 700, color: '#2CA068', letterSpacing: 2 }}>
             PICARE
           </Typography>

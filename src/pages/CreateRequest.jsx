@@ -411,7 +411,7 @@ function CreateRequest() {
         return (
           <Box sx={{ mt: 2 }}>
             <Typography variant="h6" gutterBottom>
-              Chọn người ký theo các bước
+              Chọn người ký theo từng bước
             </Typography>
             <Grid container spacing={3}>
               {[...Array(signatureStepsCount)].map((_, index) => (
