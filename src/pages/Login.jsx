@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import logo from '../img/logo.png';
 import { toast } from 'react-toastify';
 import axios from 'axios';
+import api from '../config/axios';
 
 function Login() {
   const [tabValue, setTabValue] = useState(0);
@@ -65,8 +66,15 @@ function Login() {
           password: formData.password
         });
         
-        // Store the token in localStorage or your preferred storage
+        // Store the token and user data in localStorage
         localStorage.setItem('token', response.data.token);
+        localStorage.setItem('loginUser', JSON.stringify({
+          id: response.data.id,
+          name: response.data.name,
+          mail: response.data.mail,
+          role: response.data.role,
+          chuKy: response.data.chuKy
+        }));
         toast.success('Đăng nhập thành công!');
         navigate('/dashboard');
       } else {

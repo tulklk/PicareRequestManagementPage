@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -11,14 +11,65 @@ import {
 } from '@mui/material';
 import { PhotoCamera } from '@mui/icons-material';
 import { toast } from 'react-toastify';
+import api from '../config/axios';
+import axios from 'axios';
 
 function Profile() {
-  const [name, setName] = useState('Nguyễn Văn A'); // Giá trị mặc định, sau này sẽ lấy từ API
   const [signature, setSignature] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [user, setUser] = useState({
+    name: '',
+    mail: '',
+    chuKy: ''
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const loginUser = JSON.parse(localStorage.getItem('loginUser'));
+        
+        console.log('Token:', token);
+        console.log('Login User:', loginUser);
+        
+        if (!token || !loginUser) {
+          toast.error('Vui lòng đăng nhập lại');
+          return;
+        }
+
+        
+        // Update user state with the response data
+        setUser({
+          name: loginUser.name,
+          mail: loginUser.mail,
+          chuKy: loginUser.chuKy
+        });
+
+        if (loginUser.chuKy) {
+          setPreviewUrl(loginUser.chuKy);
+        }
+      } catch (error) {
+        console.error('Full error:', error);
+        toast.error('Không thể tải thông tin người dùng');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
+
+  // Add a console log to see when user state changes
+  useEffect(() => {
+    console.log('Current user state:', user);
+  }, [user]);
 
   const handleNameChange = (event) => {
-    setName(event.target.value);
+    setUser(prev => ({
+      ...prev,
+      name: event.target.value
+    }));
   };
 
   const handleSignatureUpload = (event) => {
@@ -33,11 +84,37 @@ function Profile() {
     }
   };
 
-  const handleSave = () => {
-    // TODO: Implement API call to save profile changes
-    console.log('Saving profile:', { name, signature });
-    toast.success('Lưu thay đổi thành công!');
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      const formData = new FormData();
+      formData.append('name', user.name);
+      if (signature) {
+        formData.append('chuKy', signature);
+      }
+
+      await axios.put(`http://localhost:8080/user/update/${user.id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      toast.success('Lưu thay đổi thành công!');
+    } catch (error) {
+      toast.error('Không thể lưu thay đổi');
+      console.error('Error saving profile:', error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <Typography>Đang tải thông tin...</Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto', mt: 4 }}>
@@ -51,7 +128,7 @@ function Profile() {
             <TextField
               fullWidth
               label="Họ và tên"
-              value={name}
+              value={user.name || ''}
               onChange={handleNameChange}
               sx={{ mb: 3 }}
             />
@@ -103,7 +180,7 @@ function Profile() {
                   fontSize: '3rem',
                 }}
               >
-                {name.charAt(0)}
+                {user.name}
               </Avatar>
             </Box>
           </Grid>
@@ -113,6 +190,7 @@ function Profile() {
           <Button
             variant="contained"
             onClick={handleSave}
+            disabled={loading}
             sx={{
               bgcolor: '#2CA068',
               '&:hover': {
@@ -120,7 +198,7 @@ function Profile() {
               },
             }}
           >
-            Lưu thay đổi
+            {loading ? 'Đang lưu...' : 'Lưu thay đổi'}
           </Button>
         </Box>
       </Paper>
