@@ -17,26 +17,82 @@ import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import logo from '../img/logo.png';
 import { toast } from 'react-toastify';
+import axios from 'axios';
 
 function Login() {
   const [tabValue, setTabValue] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    mail: '',
+    password: '',
+    confirmPassword: ''
+  });
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
+    // Reset form data when switching tabs
+    setFormData({
+      fullName: '',
+      email: '',
+      password: '',
+      confirmPassword: ''
+    });
   };
 
-  const handleSubmit = (event) => {
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    // TODO: Implement login/register logic
-    console.log('Login/Register attempt');
-    // For now, simply navigate to the dashboard after submission
-    navigate('/dashboard');
-    toast.success('Đăng nhập thành công!');
+    setLoading(true);
+
+    try {
+      if (tabValue === 0) {
+        // Login
+        const response = await axios.post('http://localhost:8080/authen/login', {
+          mail: formData.mail,
+          password: formData.password
+        });
+        
+        // Store the token in localStorage or your preferred storage
+        localStorage.setItem('token', response.data.token);
+        toast.success('Đăng nhập thành công!');
+        navigate('/dashboard');
+      } else {
+        // Register
+        if (formData.password !== formData.confirmPassword) {
+          toast.error('Mật khẩu xác nhận không khớp!');
+          return;
+        }
+
+        const response = await axios.post('http://localhost:8080/authen/register', {
+          name: formData.name,
+          mail: formData.mail,
+          password: formData.password,
+          confirmPassword: formData.confirmPassword
+        });
+
+        toast.success('Đăng ký thành công! Vui lòng đăng nhập.');
+        setTabValue(0); // Switch to login tab
+      }
+    } catch (error) {
+      const errorMessage = error.response.data || 'Có lỗi xảy ra!';
+      console.log(error.response.data);
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -112,7 +168,9 @@ function Login() {
                 required
                 fullWidth
                 label="Họ và tên"
-                name="fullName"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
                 autoComplete="name"
                 size={isMobile ? "small" : "medium"}
                 sx={{ mb: 2 }}
@@ -124,7 +182,9 @@ function Login() {
               required
               fullWidth
               label="Email"
-              name="email"
+              name="mail"
+              value={formData.mail}
+              onChange={handleInputChange}
               autoComplete="email"
               size={isMobile ? "small" : "medium"}
               sx={{ mb: 2 }}
@@ -137,6 +197,8 @@ function Login() {
               name="password"
               label="Mật khẩu"
               type={showPassword ? 'text' : 'password'}
+              value={formData.password}
+              onChange={handleInputChange}
               autoComplete={tabValue === 0 ? 'current-password' : 'new-password'}
               size={isMobile ? "small" : "medium"}
               InputProps={{
@@ -163,6 +225,8 @@ function Login() {
                 name="confirmPassword"
                 label="Xác nhận mật khẩu"
                 type={showConfirmPassword ? 'text' : 'password'}
+                value={formData.confirmPassword}
+                onChange={handleInputChange}
                 autoComplete="new-password"
                 size={isMobile ? "small" : "medium"}
                 InputProps={{
@@ -187,6 +251,7 @@ function Login() {
               fullWidth
               variant="contained"
               size={isMobile ? "medium" : "large"}
+              disabled={loading}
               sx={{
                 mt: 3,
                 mb: 2,
@@ -198,7 +263,7 @@ function Login() {
                 fontSize: isMobile ? '0.875rem' : '1rem',
               }}
             >
-              {tabValue === 0 ? 'Đăng nhập' : 'Đăng ký'}
+              {loading ? 'Đang xử lý...' : (tabValue === 0 ? 'Đăng nhập' : 'Đăng ký')}
             </Button>
           </Box>
         </Paper>
