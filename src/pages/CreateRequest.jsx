@@ -296,14 +296,39 @@ function CreateRequest() {
       setLoading(true);
       const token = localStorage.getItem('token');
       
-      const paperRequest = {
-        paperId: file.apiData.id,
-        donDinhKemIdList: attachments.map(att => att.apiData.id),
-        approverIdList: Object.values(selectedSignatures).map(signer => signer.id)
-      };
+      // Validate required data
+      if (!file?.apiData?.id) {
+        throw new Error('File ID is missing');
+      }
 
+      const paperId = parseInt(file.apiData.id);
+      const donDinhKemIdList = attachments.map(att => parseInt(att.apiData.id));
+      const approverIdList = Object.values(selectedSignatures).map(signer => parseInt(signer.id));
+
+      // Validate the data
+      if (isNaN(paperId)) {
+        throw new Error('Invalid paper ID');
+      }
+
+      if (donDinhKemIdList.some(id => isNaN(id))) {
+        throw new Error('Invalid attachment ID found');
+      }
+
+      if (approverIdList.some(id => isNaN(id))) {
+        throw new Error('Invalid approver ID found');
+      }
+
+      const paperRequest = {
+        paperId: paperId,
+        donDinhKemIdList: donDinhKemIdList,
+        approverIdList: approverIdList
+      };
+      
+      console.log('Request body being sent:', JSON.stringify(paperRequest, null, 2));
+      
+      // Ensure the request body is properly structured
       const response = await axios.post('http://localhost:8080/paper/create', 
-        paperRequest,
+        JSON.stringify(paperRequest),
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -311,6 +336,8 @@ function CreateRequest() {
           }
         }
       );
+      
+      console.log('API Response:', response.data);
       
       toast.success('Đơn đã được tạo thành công!');
       
