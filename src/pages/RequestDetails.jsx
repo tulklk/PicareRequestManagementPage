@@ -199,6 +199,7 @@ function RequestDetails() {
         const pdfHeader = [0x25, 0x50, 0x44, 0x46, 0x2D]; // %PDF-
         return byte === pdfHeader[index];
       });
+      console.log('Result of isPDF check:', isPDF); // Add this line
 
       if (!isPDF) {
         console.log('File is not a PDF, skipping signature addition');
