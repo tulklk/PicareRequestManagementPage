@@ -23,7 +23,12 @@ import { toast } from 'react-toastify';
 import { uploadToGoogleDrive } from '../utils/upload';
 import axios from 'axios';
 
-const steps = ['Upload File PDF', 'Chọn người ký', 'Xác nhận'];
+const paperTypes = [
+  { id: 1, name: 'Đơn xin công tác' },
+  { id: 2, name: 'Đơn xin thanh toán' }
+];
+
+const steps = ['Chọn loại đơn', 'Upload File PDF', 'Chọn người ký', 'Xác nhận'];
 
 function CreateRequest() {
   const [activeStep, setActiveStep] = useState(0);
@@ -36,6 +41,7 @@ function CreateRequest() {
   const [approvers, setApprovers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [driveFileUrl, setDriveFileUrl] = useState(null);
+  const [selectedPaperType, setSelectedPaperType] = useState('');
 
   // Fetch approvers only when moving to step 1
   const fetchApprovers = async () => {
@@ -255,13 +261,18 @@ function CreateRequest() {
 
   const handleNext = async () => {
     if (activeStep === 0) {
+      if (!selectedPaperType) {
+        toast.error('Vui lòng chọn loại đơn');
+        return;
+      }
+      setActiveStep((prevStep) => prevStep + 1);
+    } else if (activeStep === 1) {
       if (!file || !file.url) {
         toast.error('Vui lòng chọn và đợi file PDF tải lên hoàn tất');
         return;
       }
-      // Move to next step
       setActiveStep((prevStep) => prevStep + 1);
-    } else if (activeStep === 1) {
+    } else if (activeStep === 2) {
       // Validate signature selections
       for (let i = 0; i < signatureStepsCount; i++) {
         if (!selectedSignatures[i]) {
@@ -270,7 +281,7 @@ function CreateRequest() {
         }
       }
       setActiveStep((prevStep) => prevStep + 1);
-    } else if (activeStep === 2) {
+    } else if (activeStep === 3) {
       setActiveStep((prevStep) => prevStep + 1);
     }
   };
@@ -301,6 +312,14 @@ function CreateRequest() {
         throw new Error('File ID is missing');
       }
 
+      if (!title.trim()) {
+        throw new Error('Title is required');
+      }
+
+      if (!selectedPaperType) {
+        throw new Error('Vui lòng chọn loại đơn');
+      }
+
       const paperId = parseInt(file.apiData.id);
       const donDinhKemIdList = attachments.map(att => parseInt(att.apiData.id));
       const approverIdList = Object.values(selectedSignatures).map(signer => parseInt(signer.id));
@@ -321,7 +340,10 @@ function CreateRequest() {
       const paperRequest = {
         paperId: paperId,
         donDinhKemIdList: donDinhKemIdList,
-        approverIdList: approverIdList
+        approverIdList: approverIdList,
+        paperTypeId: parseInt(selectedPaperType),
+        title: title.trim(),
+        description: description.trim()
       };
       
       console.log('Request body being sent:', JSON.stringify(paperRequest, null, 2));
@@ -361,6 +383,28 @@ function CreateRequest() {
   const renderStepContent = (step) => {
     switch (step) {
       case 0:
+        return (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Chọn loại đơn
+            </Typography>
+            <FormControl fullWidth required>
+              <InputLabel>Loại đơn</InputLabel>
+              <Select
+                value={selectedPaperType}
+                label="Loại đơn"
+                onChange={(e) => setSelectedPaperType(e.target.value)}
+              >
+                {paperTypes.map((type) => (
+                  <MenuItem key={type.id} value={type.id}>
+                    {type.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+        );
+      case 1:
         return (
           <Box sx={{ mt: 2 }}>
             <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
@@ -433,8 +477,7 @@ function CreateRequest() {
             )}
           </Box>
         );
-        
-      case 1:
+      case 2:
         return (
           <Box sx={{ mt: 2 }}>
             <Typography variant="h6" gutterBottom>
@@ -479,13 +522,18 @@ function CreateRequest() {
             </Button>
           </Box>
         );
-      case 2:
+      case 3:
         return (
           <Box sx={{ mt: 2 }}>
             <Typography variant="h6" gutterBottom>
               Xác nhận thông tin
             </Typography>
             <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Typography variant="subtitle1">
+                  Loại đơn: {paperTypes.find(type => type.id === parseInt(selectedPaperType))?.name}
+                </Typography>
+              </Grid>
               <Grid item xs={12}>
                 <TextField
                   fullWidth
