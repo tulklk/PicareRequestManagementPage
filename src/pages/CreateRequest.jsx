@@ -87,7 +87,15 @@ function CreateRequest() {
 
   const handleFileChange = async (event) => {
     const selectedFile = event.target.files[0];
-    if (selectedFile && selectedFile.type === 'application/pdf') {
+    const allowedTypes = [
+      'application/pdf',
+      'image/png',
+      'image/jpeg',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+      'application/vnd.ms-excel' // xls
+    ];
+
+    if (selectedFile && allowedTypes.includes(selectedFile.type)) {
       try {
         setLoading(true);
         console.log('Step 1: User selected file:', selectedFile.name);
@@ -136,7 +144,7 @@ function CreateRequest() {
           apiData: savedFile.data
         });
         console.log('Step 3 completed: File info saved to database');
-        toast.success('File PDF đã được tải lên thành công!');
+        toast.success('File đã được tải lên thành công!');
 
         // Step 5: Fetch approvers immediately after file upload
         console.log('Step 5: Fetching list of approvers...');
@@ -146,20 +154,20 @@ function CreateRequest() {
         if (error.response) {
           console.error('Error response:', error.response.data);
           console.error('Error status:', error.response.status);
-          toast.error(`Lỗi từ server: ${error.response.data.message || 'Không thể tải lên file PDF'}`);
+          toast.error(`Lỗi từ server: ${error.response.data.message || 'Không thể tải lên file'}`);
         } else if (error.request) {
           console.error('No response received:', error.request);
           toast.error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
         } else {
           console.error('Error message:', error.message);
-          toast.error(`Lỗi: ${error.message || 'Không thể tải lên file PDF'}`);
+          toast.error(`Lỗi: ${error.message || 'Không thể tải lên file'}`);
         }
       } finally {
         setLoading(false);
         event.target.value = null;
       }
     } else {
-      toast.error('Vui lòng chọn file PDF');
+      toast.error('Vui lòng chọn file PDF, PNG, JPEG hoặc Excel');
       event.target.value = null;
     }
   };
@@ -411,7 +419,7 @@ function CreateRequest() {
               Upload File Trình Ký
             </Typography>
             <input
-              accept=".pdf"
+              accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls"
               style={{ display: 'none' }}
               id="pdf-file"
               type="file"

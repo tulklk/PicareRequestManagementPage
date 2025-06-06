@@ -13,15 +13,17 @@ import { PhotoCamera } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import api from '../config/axios';
 import axios from 'axios';
-import { uploadToGoogleDrive } from '../utils/upload';
+import { uploadSignatureToGoogleDrive } from '../utils/upload-sign';
 
 function Profile() {
   const [signature, setSignature] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [user, setUser] = useState({
+    id: null,
     name: '',
     mail: '',
-    chuKy: ''
+    chuKy: null,
+    role: ''
   });
   const [loading, setLoading] = useState(true);
 
@@ -31,27 +33,44 @@ function Profile() {
         const token = localStorage.getItem('token');
         const loginUser = JSON.parse(localStorage.getItem('loginUser'));
         
-        console.log('Token:', token);
-        console.log('Login User:', loginUser);
-        
         if (!token || !loginUser) {
           toast.error('Vui lòng đăng nhập lại');
           return;
         }
 
+        // Fetch user details from API
+        const response = await axios.get(`http://localhost:8080/user/view/${loginUser.id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        console.log('User API response:', response.data);
         
         // Update user state with the response data
         setUser({
-          name: loginUser.name,
-          mail: loginUser.mail,
-          chuKy: loginUser.chuKy
+          id: response.data.id,
+          name: response.data.name,
+          mail: response.data.mail,
+          chuKy: response.data.chuKy,
+          role: response.data.role
         });
 
-        if (loginUser.chuKy) {
-          setPreviewUrl(loginUser.chuKy);
+        // If user has a signature, fetch its URL
+        if (response.data.chuKy) {
+          try {
+            const signatureResponse = await axios.get(`http://localhost:8080/attachment/view/${response.data.chuKy}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            setPreviewUrl(signatureResponse.data.url);
+          } catch (error) {
+            console.error('Error fetching signature URL:', error);
+          }
         }
       } catch (error) {
-        console.error('Full error:', error);
+        console.error('Error fetching user profile:', error);
         toast.error('Không thể tải thông tin người dùng');
       } finally {
         setLoading(false);
@@ -60,11 +79,6 @@ function Profile() {
 
     fetchUserProfile();
   }, []);
-
-  // Add a console log to see when user state changes
-  useEffect(() => {
-    console.log('Current user state:', user);
-  }, [user]);
 
   const handleNameChange = (event) => {
     setUser(prev => ({
@@ -75,13 +89,19 @@ function Profile() {
 
   const handleSignatureUpload = async (event) => {
     const file = event.target.files[0];
-    if (file && file.type === 'application/pdf') {
+    const allowedTypes = [
+      'application/pdf',
+      'image/png',
+      'image/jpeg'
+    ];
+
+    if (file && allowedTypes.includes(file.type)) {
       try {
         setLoading(true);
         console.log('Step 1: Uploading signature to Google Drive...');
         
         // Step 1: Upload to Google Drive
-        const fileUrl = await uploadToGoogleDrive(file);
+        const fileUrl = await uploadSignatureToGoogleDrive(file);
         if (!fileUrl) {
           throw new Error('Failed to get file URL from Google Drive');
         }
@@ -109,17 +129,21 @@ function Profile() {
 
         console.log('Server response:', savedSignature.data);
         
-        if (!savedSignature.data || !savedSignature.data.url) {
+        if (!savedSignature.data || !savedSignature.data.id) {
           throw new Error('Invalid response from server');
         }
 
         // Update preview and state
         setSignature(file);
         setPreviewUrl(savedSignature.data.url);
-        setUser(prev => ({
-          ...prev,
-          chuKy: savedSignature.data.url
-        }));
+        
+        // Update user's signature ID and URL in local storage
+        const updatedUser = {
+          ...user,
+          chuKy: savedSignature.data.id
+        };
+        setUser(updatedUser);
+        localStorage.setItem('loginUser', JSON.stringify(updatedUser));
 
         console.log('Step 2 completed: Signature info saved to database');
         toast.success('Chữ ký đã được tải lên thành công!');
@@ -141,7 +165,7 @@ function Profile() {
         event.target.value = null;
       }
     } else {
-      toast.error('Vui lòng chọn file PDF');
+      toast.error('Vui lòng chọn file PDF, PNG hoặc JPEG');
       event.target.value = null;
     }
   };
@@ -149,22 +173,33 @@ function Profile() {
   const handleSave = async () => {
     try {
       setLoading(true);
-      const formData = new FormData();
-      formData.append('name', user.name);
-      if (signature) {
-        formData.append('chuKy', signature);
-      }
+      const token = localStorage.getItem('token');
+      
+      // Prepare request body
+      const requestBody = {
+        name: user.name,
+        mail: user.mail,
+        chuKy: user.chuKy // This will be the signature ID
+      };
 
-      await axios.put(`http://localhost:8080/user/update/${user.id}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      console.log('Update request body:', requestBody);
 
+      const response = await axios.put(
+        `http://localhost:8080/user/update/${user.id}`,
+        requestBody,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      console.log('Update response:', response.data);
       toast.success('Lưu thay đổi thành công!');
     } catch (error) {
-      toast.error('Không thể lưu thay đổi');
       console.error('Error saving profile:', error);
+      toast.error('Không thể lưu thay đổi');
     } finally {
       setLoading(false);
     }
@@ -224,7 +259,7 @@ function Profile() {
                   <input
                     type="file"
                     hidden
-                    accept=".pdf"
+                    accept=".pdf,.png,.jpg,.jpeg"
                     onChange={handleSignatureUpload}
                   />
                 </Button>
