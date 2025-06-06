@@ -54,7 +54,7 @@ function CreateRequest() {
         return;
       }
 
-      const response = await axios.get('http://localhost:8080/user/view', {
+      const response = await axios.get('http://localhost:8080/user/view-approver', {
         headers: {
           'Authorization': `Bearer ${token}`
         }

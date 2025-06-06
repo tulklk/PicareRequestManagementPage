@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
@@ -10,44 +10,38 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Chip,
   IconButton,
+  Chip,
 } from '@mui/material';
 import { Visibility as VisibilityIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-
-// Mock data - replace with actual API calls
-const mockRequests = [
-  {
-    id: '1',
-    
-    title: 'Đơn xin nghỉ phép',
-    createdAt: '2024-04-25',
-    status: 'pending',
-    requester: 'Nguyễn Văn A',
-    department: 'Phòng Kỹ thuật',
-  },
-  {
-    id: '2',
-    title: 'Đơn xin tăng lương',
-    createdAt: '2024-04-24',
-    status: 'pending',
-    requester: 'Trần Văn B',
-    department: 'Phòng Nhân sự',
-  },
-  {
-    id: '3',
-    title: 'Đơn xin chuyển phòng ban',
-    createdAt: '2024-04-23',
-    status: 'pending',
-    requester: 'Lê Văn C',
-    department: 'Phòng Kinh doanh',
-  },
-];
+import axios from 'axios';
 
 function PendingApprovals() {
   const navigate = useNavigate();
-  const [requests] = useState(mockRequests);
+  const [requests, setRequests] = useState([]);
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(
+          'http://localhost:8080/paper/approver/view-by-status?status=WAITING',
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+        setRequests(response.data);
+      } catch (error) {
+        console.error('Error fetching requests:', error);
+        setRequests([]);
+      }
+    };
+
+    fetchRequests();
+  }, []);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -63,20 +57,33 @@ function PendingApprovals() {
             <Table>
               <TableHead>
                 <TableRow>
+                  <TableCell>STT</TableCell>
                   <TableCell>Tiêu đề</TableCell>
+                  <TableCell>Loại đơn</TableCell>
                   <TableCell>Người gửi</TableCell>
-                  <TableCell>Phòng ban</TableCell>
                   <TableCell>Ngày tạo</TableCell>
+                  <TableCell>Trạng thái</TableCell>
                   <TableCell align="right">Thao tác</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {requests.map((request) => (
+                {requests.map((request, index) => (
                   <TableRow key={request.id}>
+                    <TableCell>{index + 1}</TableCell>
                     <TableCell>{request.title}</TableCell>
-                    <TableCell>{request.requester}</TableCell>
-                    <TableCell>{request.department}</TableCell>
-                    <TableCell>{request.createdAt}</TableCell>
+                    <TableCell>{request.paperType?.name}</TableCell>
+                    <TableCell>{request.author?.name}</TableCell>
+                    <TableCell>{new Date(request.created_date).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={request.status} 
+                        sx={{ 
+                          backgroundColor: request.status === 'PENDING' ? '#FFD700' : 'inherit',
+                          color: request.status === 'PENDING' ? '#000000' : 'inherit',
+                          fontWeight: 'bold'
+                        }}
+                      />
+                    </TableCell>
                     <TableCell align="right">
                       <IconButton
                         size="small"

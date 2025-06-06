@@ -35,7 +35,7 @@ export const uploadToGoogleDrive = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await axios.post('http://localhost:8080/api/upload/file', formData, {
+    const response = await axios.post('http://localhost:8080/api/gg-cloud/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
         'Authorization': `Bearer ${token}`

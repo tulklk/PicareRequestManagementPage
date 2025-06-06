@@ -1,163 +1,150 @@
-import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
   Typography,
   Grid,
-  Stepper,
-  Step,
-  StepLabel,
   Button,
   Divider,
   List,
   ListItem,
   ListItemText,
-  ListItemAvatar,
-  Avatar,
   Chip,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   TextField,
-  Radio,
-  RadioGroup,
-  FormControlLabel,
-  FormControl,
-  FormLabel,
 } from '@mui/material';
-import {
-  Description as DescriptionIcon,
-  CheckCircle as CheckCircleIcon,
-  Pending as PendingIcon,
-  Download as DownloadIcon,
-} from '@mui/icons-material';
+import { Download as DownloadIcon } from '@mui/icons-material';
 import { toast } from 'react-toastify';
+import axios from 'axios';
 
-// Mock data - replace with actual API calls
-const mockRequest = {
-  id: '1',
-  title: 'Đơn xin nghỉ phép',
-  description: 'Xin nghỉ phép từ ngày 01/05/2024 đến 03/05/2024',
-  createdAt: '2024-04-25',
-  status: 'pending',
-  file: 'don-xin-nghi-phep.xlsx',
-  approvalSteps: [
-    {
-      id: 1,
-      role: 'Người tạo đơn',
-      approver: 'Nguyễn Văn A',
-      status: 'approved',
-      approvedAt: '2024-04-25 09:00',
-      comment: 'Đã ký',
-    },
-    {
-      id: 2,
-      role: 'Trưởng phòng',
-      approver: 'Trần Văn B',
-      status: 'pending',
-      approvedAt: null,
-      comment: null,
-    },
-    {
-      id: 3,
-      role: 'Giám đốc',
-      approver: 'Lê Văn C',
-      status: 'pending',
-      approvedAt: null,
-      comment: null,
-    },
-  ],
-};
-
-// Mock signature images - replace with actual signature images
-const signatureImages = [
-  {
-    id: 1,
-    name: 'Chữ ký 1',
-    url: '/signatures/signature1.png',
-  },
-  {
-    id: 2,
-    name: 'Chữ ký 2',
-    url: '/signatures/signature2.png',
-  },
-  {
-    id: 3,
-    name: 'Chữ ký 3',
-    url: '/signatures/signature3.png',
-  },
-];
-
-// Predefined rejection reasons
-const rejectionReasons = [
-  'Thiếu thông tin cần thiết',
-  'Không đúng quy định',
-  'Không đủ điều kiện',
-  'Không phù hợp với chính sách công ty',
-  'Khác',
-];
 
 function RequestDetails() {
   const { id } = useParams();
-  const [selectedSignature, setSelectedSignature] = useState(null);
-  const [currentUser] = useState({ role: 'Trưởng phòng', name: 'Trần Văn B' });
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
-  const [selectedReason, setSelectedReason] = useState('');
-  const [customReason, setCustomReason] = useState('');
+  const navigate = useNavigate();
+  const [request, setRequest] = useState(null);
+  const [denyDialogOpen, setDenyDialogOpen] = useState(false);
+  const [denyReason, setDenyReason] = useState('');
 
-  const handleApprove = async () => {
-    if (!selectedSignature) {
-      toast.error('Vui lòng chọn chữ ký');
-      return;
-    }
+  useEffect(() => {
+    const fetchRequest = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        console.log('Fetching paper with ID:', id);
+        const response = await axios.get(
+          `http://localhost:8080/paper/view/${id}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+        console.log('Full paper response:', response);
+        console.log('Paper data:', response.data);
+        console.log('Paper waiting_step:', response.data.waiting_step);
+        console.log('Paper id:', response.data.id);
+        setRequest(response.data);
+      } catch (error) {
+        console.error('Error fetching request:', error);
+        console.error('Error details:', error.response?.data);
+      }
+    };
+
+    fetchRequest();
+  }, [id]);
+
+  const handleAccept = async () => {
     try {
-      // Implement approve logic here
-      toast.success('Đã duyệt đơn thành công!');
+      console.log('Request data:', request);
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        'http://localhost:8080/approve-step/approve',
+        {
+          step: request.waiting_step,
+          approverId: null,
+          donKiemDuyetId: request.id,
+          denyReason: null
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      console.log('Approve response:', response.data);
+      toast.success('Đã duyệt đơn thành công!', {
+        onClose: () => {
+          navigate('/pending-approvals');
+        }
+      });
     } catch (error) {
+      console.error('Error approving request:', error);
       toast.error('Có lỗi xảy ra khi duyệt đơn');
     }
   };
 
-  const handleReject = async () => {
-    if (!selectedReason) {
-      toast.error('Vui lòng chọn lý do từ chối');
-      return;
-    }
-
-    if (selectedReason === 'Khác' && !customReason.trim()) {
+  const handleDeny = async () => {
+    if (!denyReason.trim()) {
       toast.error('Vui lòng nhập lý do từ chối');
       return;
     }
 
     try {
-      const rejectionReason = selectedReason === 'Khác' ? customReason : selectedReason;
-      // Implement reject logic here with rejectionReason
-      toast.success('Đã từ chối đơn!');
-      setRejectDialogOpen(false);
-      setSelectedReason('');
-      setCustomReason('');
+      console.log('Request data:', request);
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        'http://localhost:8080/approve-step/deny',
+        {
+          step: request.waiting_step,
+          approverId: null,
+          donKiemDuyetId: request.id,
+          denyReason: denyReason
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      console.log('Deny response:', response.data);
+      toast.success('Đã từ chối đơn!', {
+        onClose: () => {
+          navigate('/pending-approvals');
+        }
+      });
+      setDenyDialogOpen(false);
+      setDenyReason('');
     } catch (error) {
+      console.error('Error denying request:', error);
       toast.error('Có lỗi xảy ra khi từ chối đơn');
     }
   };
 
-  const handleDownload = () => {
-    // Implement download logic here
-    toast.success('Đang tải file...');
-  };
-
-  const getStepIcon = (status) => {
-    switch (status) {
-      case 'approved':
-        return <CheckCircleIcon color="success" />;
-      case 'rejected':
-        return <PendingIcon color="error" />;
-      default:
-        return <PendingIcon color="disabled" />;
+  const handleDownload = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `http://localhost:8080/attachment/view/${request.paper_id}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      window.open(response.data.url, '_blank');
+    } catch (error) {
+      console.error('Error fetching attachment:', error);
     }
   };
+
+  if (!request) {
+    return <Typography>Loading...</Typography>;
+  }
 
   return (
     <Box sx={{ maxWidth: 1000, mx: 'auto', mt: 4 }}>
@@ -178,27 +165,24 @@ function RequestDetails() {
               <ListItem>
                 <ListItemText
                   primary="Tiêu đề"
-                  secondary={mockRequest.title}
+                  secondary={request.title}
                 />
               </ListItem>
               <ListItem>
                 <ListItemText
                   primary="Mô tả"
-                  secondary={mockRequest.description}
+                  secondary={request.description}
                 />
               </ListItem>
               <ListItem>
                 <ListItemText
                   primary="Ngày tạo"
-                  secondary={mockRequest.createdAt}
+                  secondary={new Date(request.created_date).toLocaleDateString()}
                 />
               </ListItem>
               <ListItem>
-                <ListItemText
-                  primary="File đính kèm"
-                  secondary={mockRequest.file}
-                />
                 <Button
+                  variant="contained"
                   startIcon={<DownloadIcon />}
                   onClick={handleDownload}
                 >
@@ -213,157 +197,66 @@ function RequestDetails() {
               Trạng thái
             </Typography>
             <Chip
-              label={mockRequest.status === 'pending' ? 'Đang chờ ký' : 'Đã ký'}
-              color={mockRequest.status === 'pending' ? 'warning' : 'success'}
+              label={request.status === 'PENDING' ? 'Đang chờ ký' : 'Đã ký'}
+              color={request.status === 'PENDING' ? 'warning' : 'success'}
               sx={{ mb: 2 }}
             />
           </Grid>
 
           <Grid item xs={12}>
-            <Typography variant="h6" gutterBottom>
-              Quy trình ký duyệt
-            </Typography>
-            <Stepper orientation="vertical">
-              {mockRequest.approvalSteps.map((step) => (
-                <Step key={step.id} active={step.status !== 'pending'} completed={step.status === 'approved'}>
-                  <StepLabel
-                    icon={getStepIcon(step.status)}
-                    optional={
-                      step.approvedAt && (
-                        <Typography variant="caption">
-                          {step.approvedAt}
-                        </Typography>
-                      )
-                    }
-                  >
-                    <Typography variant="subtitle1">
-                      {step.role}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {step.approver}
-                    </Typography>
-                    {step.comment && (
-                      <Typography variant="body2" color="text.secondary">
-                        {step.comment}
-                      </Typography>
-                    )}
-                  </StepLabel>
-                </Step>
-              ))}
-            </Stepper>
+            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+              <Button
+                variant="contained"
+                color="success"
+                onClick={handleAccept}
+              >
+                Duyệt
+              </Button>
+              <Button
+                variant="contained"
+                color="error"
+                onClick={() => setDenyDialogOpen(true)}
+              >
+                Từ chối
+              </Button>
+            </Box>
           </Grid>
-
-          {mockRequest.status === 'pending' && currentUser.role === 'Trưởng phòng' && (
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>
-                Chọn chữ ký
-              </Typography>
-              <Grid container spacing={2} sx={{ mt: 2 }}>
-                {signatureImages.map((signature) => (
-                  <Grid item xs={12} sm={4} key={signature.id}>
-                    <Paper
-                      variant="outlined"
-                      sx={{
-                        p: 2,
-                        cursor: 'pointer',
-                        border: selectedSignature?.id === signature.id ? '2px solid #2CA068' : '1px solid #ccc',
-                        '&:hover': {
-                          borderColor: '#2CA068',
-                        },
-                      }}
-                      onClick={() => setSelectedSignature(signature)}
-                    >
-                      <img
-                        src={signature.url}
-                        alt={signature.name}
-                        style={{
-                          width: '100%',
-                          height: 'auto',
-                          maxHeight: '150px',
-                          objectFit: 'contain',
-                        }}
-                      />
-                      <Typography variant="body2" align="center" sx={{ mt: 1 }}>
-                        {signature.name}
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                ))}
-              </Grid>
-              <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={handleApprove}
-                >
-                  Duyệt
-                </Button>
-                <Button
-                  variant="contained"
-                  color="error"
-                  onClick={() => setRejectDialogOpen(true)}
-                >
-                  Từ chối
-                </Button>
-              </Box>
-            </Grid>
-          )}
         </Grid>
       </Paper>
 
-      {/* Rejection Dialog */}
+      {/* Deny Dialog */}
       <Dialog
-        open={rejectDialogOpen}
+        open={denyDialogOpen}
         onClose={() => {
-          setRejectDialogOpen(false);
-          setSelectedReason('');
-          setCustomReason('');
+          setDenyDialogOpen(false);
+          setDenyReason('');
         }}
         maxWidth="sm"
         fullWidth
       >
         <DialogTitle>Xác nhận từ chối đơn</DialogTitle>
         <DialogContent>
-          <FormControl component="fieldset" sx={{ mt: 2, width: '100%' }}>
-            <FormLabel component="legend">Lý do từ chối</FormLabel>
-            <RadioGroup
-              value={selectedReason}
-              onChange={(e) => setSelectedReason(e.target.value)}
-            >
-              {rejectionReasons.map((reason) => (
-                <FormControlLabel
-                  key={reason}
-                  value={reason}
-                  control={<Radio />}
-                  label={reason}
-                />
-              ))}
-            </RadioGroup>
-            {selectedReason === 'Khác' && (
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                value={customReason}
-                onChange={(e) => setCustomReason(e.target.value)}
-                placeholder="Nhập lý do từ chối"
-                sx={{ mt: 2 }}
-              />
-            )}
-          </FormControl>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            value={denyReason}
+            onChange={(e) => setDenyReason(e.target.value)}
+            placeholder="Nhập lý do từ chối"
+            sx={{ mt: 2 }}
+          />
         </DialogContent>
         <DialogActions>
           <Button
             onClick={() => {
-              setRejectDialogOpen(false);
-              setSelectedReason('');
-              setCustomReason('');
+              setDenyDialogOpen(false);
+              setDenyReason('');
             }}
           >
             Hủy
           </Button>
           <Button
-            onClick={handleReject}
+            onClick={handleDeny}
             color="error"
             variant="contained"
           >
