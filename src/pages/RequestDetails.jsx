@@ -22,6 +22,7 @@ import {
 import { toast } from 'react-toastify';
 import axios from 'axios';
 import ArrowBack from '@mui/icons-material/ArrowBack';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 
 function RequestDetails() {
   const { id } = useParams();
@@ -32,6 +33,7 @@ function RequestDetails() {
   const [denyReason, setDenyReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [attachment, setAttachment] = useState(null);
   const isFromHistory = location.state?.from === 'history';
   const isFromCancelled = location.state?.from === 'cancelled';
 
@@ -39,7 +41,6 @@ function RequestDetails() {
     const fetchRequest = async () => {
       try {
         const token = localStorage.getItem('token');
-        console.log('Fetching paper with ID:', id);
         const response = await axios.get(
           `http://localhost:8080/paper/view/${id}`,
           {
@@ -48,11 +49,22 @@ function RequestDetails() {
             }
           }
         );
-        console.log('Full paper response:', response);
-        console.log('Paper data:', response.data);
-        console.log('Paper waiting_step:', response.data.waiting_step);
-        console.log('Paper id:', response.data.id);
         setRequest(response.data);
+        
+        // Fetch attachment after getting paper data
+        try {
+          const attachmentResponse = await axios.get(
+            `http://localhost:8080/attachment/view/${response.data.paper_id}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            }
+          );
+          setAttachment(attachmentResponse.data);
+        } catch (attachmentError) {
+          console.error('Error fetching attachment:', attachmentError);
+        }
       } catch (error) {
         console.error('Error fetching request:', error);
         console.error('Error details:', error.response?.data);
@@ -68,9 +80,6 @@ function RequestDetails() {
   const callApproveAPI = async (approveData, token, maxRetries = 3) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`Attempt ${attempt} of ${maxRetries} to call approve API`);
-        console.log('Calling API with data:', approveData);
-        
         const response = await axios.post(
           'http://localhost:8080/approve-step/approve',
           approveData,
@@ -83,7 +92,6 @@ function RequestDetails() {
           }
         );
 
-        console.log('API Response:', response.data);
         return response;
       } catch (error) {
         console.error(`Attempt ${attempt} failed:`, error);
@@ -92,9 +100,7 @@ function RequestDetails() {
           throw error;
         }
         
-        // Wait before retrying (exponential backoff)
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        console.log(`Waiting ${delay}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -110,25 +116,20 @@ function RequestDetails() {
         throw new Error('Không tìm thấy thông tin người dùng');
       }
 
-      // Call approve API
-      console.log('Calling approve API...');
       const approveData = {
         step: request.waiting_step,
         approverId: currentUser.id,
         donKiemDuyetId: request.id, 
         denyReason: null
       };
-      console.log('Approval request data:', approveData);
 
       try {
         const approveResponse = await callApproveAPI(approveData, token);
-        console.log('Approval response:', approveResponse.data);
 
         if (!approveResponse.data) {
           throw new Error('Không nhận được phản hồi từ server sau khi duyệt');
         }
 
-        console.log('Approval successful');
         toast.success('Đã duyệt đơn thành công!', {
           onClose: () => {
             navigate('/pending-approvals');
@@ -139,13 +140,10 @@ function RequestDetails() {
         if (approveError.response) {
           console.error('Error response data:', approveError.response.data);
           console.error('Error response status:', approveError.response.status);
-          console.error('Error response headers:', approveError.response.headers);
           throw new Error(`Lỗi từ server khi duyệt: ${approveError.response.data.message || 'Không thể cập nhật trạng thái duyệt'}`);
         } else if (approveError.request) {
-          console.error('No response received from approval API:', approveError.request);
           throw new Error('Không thể kết nối đến server để duyệt. Vui lòng kiểm tra kết nối mạng và thử lại.');
         } else {
-          console.error('Error message in approval API call:', approveError.message);
           throw new Error(`Lỗi khi gọi API duyệt: ${approveError.message}`);
         }
       }
@@ -154,8 +152,6 @@ function RequestDetails() {
       if (error.response) {
         console.error('Error response:', error.response.data);
         console.error('Error status:', error.response.status);
-        console.error('Error URL:', error.config?.url);
-        console.error('Error method:', error.config?.method);
         toast.error(`Lỗi trong quá trình duyệt đơn: ${error.response.data.message || 'Có lỗi xảy ra khi duyệt đơn'}`);
       } else {
         toast.error(error.message || 'Có lỗi xảy ra khi duyệt đơn');
@@ -172,7 +168,6 @@ function RequestDetails() {
     }
 
     try {
-      console.log('Request data:', request);
       const token = localStorage.getItem('token');
       const response = await axios.post(
         'http://localhost:8080/approve-step/deny',
@@ -189,7 +184,6 @@ function RequestDetails() {
           }
         }
       );
-      console.log('Deny response:', response.data);
       toast.success('Đã từ chối đơn!', {
         onClose: () => {
           navigate('/pending-approvals');
@@ -203,11 +197,17 @@ function RequestDetails() {
     }
   };
 
+  const handleViewAttachment = () => {
+    if (attachment?.url) {
+      window.open(`https://drive.usercontent.google.com/download?id=${attachment.url}&export=download&authuser=0`);
+    }
+  };
+
   if (!request) {
     return <Typography>Loading...</Typography>;
   }
 
-  console.log(`deny reason is ${request.denyReason}`)
+  
 
   return (
     <Box sx={{ p: 3 }}>
@@ -284,6 +284,25 @@ function RequestDetails() {
                   {request.description}
                 </Typography>
               </Grid>
+              {attachment && (
+                <Grid item xs={12}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<AttachFileIcon />}
+                    onClick={handleViewAttachment}
+                    sx={{
+                      borderColor: '#2CA068',
+                      color: '#2CA068',
+                      '&:hover': {
+                        borderColor: '#2CA068',
+                        backgroundColor: 'rgba(44, 160, 104, 0.04)',
+                      },
+                    }}
+                  >
+                    {attachment.fileName}
+                  </Button>
+                </Grid>
+              )}
               {isFromCancelled && request.denyReason && (
                 <Grid item xs={12}>
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>
