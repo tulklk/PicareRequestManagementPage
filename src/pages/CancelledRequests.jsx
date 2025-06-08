@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
@@ -11,47 +12,52 @@ import {
   TableHead,
   TableRow,
   Tooltip,
+  Chip,
+  IconButton,
 } from '@mui/material';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 // Mock data - replace with actual API calls
-const mockRequests = [
-  {
-    id: '1',
-    title: 'Đơn xin chuyển phòng ban',
-    createdAt: '2024-04-23',
-    status: 'cancelled',
-    currentApprover: 'Trưởng phòng',
-    type: 'thanh_toan',
-    cancelReason: 'Đơn không đúng quy định',
-    cancelledBy: 'Nguyễn Văn A',
-    cancelledAt: '2024-04-24',
-  },
-  {
-    id: '2',
-    title: 'Đơn đề nghị tạm ứng',
-    createdAt: '2024-04-22',
-    status: 'cancelled',
-    currentApprover: 'Kế toán',
-    type: 'tam_ung',
-    cancelReason: 'Thiếu chữ ký xác nhận',
-    cancelledBy: 'Trần Thị B',
-    cancelledAt: '2024-04-23',
-  },
-  {
-    id: '3',
-    title: 'Đơn xin nghỉ phép',
-    createdAt: '2024-04-21',
-    status: 'cancelled',
-    currentApprover: 'Quản lý',
-    type: 'xin_nghi',
-    cancelReason: 'Không đủ ngày nghỉ phép',
-    cancelledBy: 'Lê Văn C',
-    cancelledAt: '2024-04-22',
-  },
-];
 
 function CancelledRequests() {
-  const [requests] = useState(mockRequests);
+  const navigate = useNavigate();
+  const [canceledRequests, setCanceledRequests] = useState([]);
+  const [deniedRequests, setDeniedRequests] = useState([]);
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers = {
+          Authorization: `Bearer ${token}`,
+        };
+
+        // Fetch canceled requests (from author)
+        const canceledResponse = await axios.get(
+          'http://localhost:8080/paper/author/view-by-status?status=CANCELED',
+          { headers }
+        );
+        setCanceledRequests(canceledResponse.data);
+
+        // Fetch denied requests (from approver)
+        const deniedResponse = await axios.get(
+          'http://localhost:8080/paper/approver/view-by-status?status=DENY',
+          { headers }
+        );
+        setDeniedRequests(deniedResponse.data);
+      } catch (error) {
+        console.error('Error fetching requests:', error);
+      }
+    };
+
+    fetchRequests();
+  }, []);
+
+  const handleViewRequest = (requestId) => {
+    navigate(`/request/${requestId}`, { state: { from: 'cancelled' } });
+  };
 
   const getRequestTypeLabel = (type) => {
     switch (type) {
@@ -67,58 +73,104 @@ function CancelledRequests() {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Typography variant="h5" gutterBottom>
-            Danh sách đơn đã hủy
-          </Typography>
-        </Grid>
+    <Box>
+      <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, color: '#2CA068' }}>
+        Đơn bị hủy
+      </Typography>
+      
+      <TableContainer component={Paper} sx={{ boxShadow: 'none', border: '1px solid #E6F4EF', mb: 4 }}>
+        <Table>
+          <TableHead>
+            <TableRow sx={{ backgroundColor: '#F6FAF8' }}>
+              <TableCell>STT</TableCell>
+              <TableCell>Tiêu đề</TableCell>
+              <TableCell>Loại đơn</TableCell>
+              <TableCell>Người gửi</TableCell>
+              <TableCell>Ngày tạo</TableCell>
+              <TableCell>Trạng thái</TableCell>
+              <TableCell align="right">Thao tác</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {canceledRequests.map((request, index) => (
+              <TableRow key={request.id}>
+                <TableCell>{index + 1}</TableCell>
+                <TableCell>{request.title}</TableCell>
+                <TableCell>{request.paperType?.name}</TableCell>
+                <TableCell>{request.author?.name}</TableCell>
+                <TableCell>{new Date(request.created_date).toLocaleDateString()}</TableCell>
+                <TableCell>
+                  <Chip
+                    label="Đã hủy"
+                    sx={{
+                      backgroundColor: '#FFE8E8',
+                      color: '#FF4D4F',
+                      fontWeight: 600,
+                    }}
+                  />
+                </TableCell>
+                <TableCell align="right">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleViewRequest(request.id)}
+                  >
+                    <VisibilityIcon />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-        <Grid item xs={12}>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Tiêu đề</TableCell>
-                  <TableCell>Loại đơn</TableCell>
-                  <TableCell>Ngày tạo</TableCell>
-                  <TableCell>Người hủy</TableCell>
-                  <TableCell>Ngày hủy</TableCell>
-                  <TableCell>Lý do hủy</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {requests.map((request) => (
-                  <TableRow key={request.id}>
-                    <TableCell>{request.title}</TableCell>
-                    <TableCell>{getRequestTypeLabel(request.type)}</TableCell>
-                    <TableCell>{request.createdAt}</TableCell>
-                    <TableCell>{request.cancelledBy}</TableCell>
-                    <TableCell>{request.cancelledAt}</TableCell>
-                    <TableCell>
-                      <Tooltip title={request.cancelReason}>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: 'error.main',
-                            maxWidth: 200,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {request.cancelReason}
-                        </Typography>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Grid>
-      </Grid>
+      <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, color: '#2CA068' }}>
+        Đơn đã hủy
+      </Typography>
+      
+      <TableContainer component={Paper} sx={{ boxShadow: 'none', border: '1px solid #E6F4EF' }}>
+        <Table>
+          <TableHead>
+            <TableRow sx={{ backgroundColor: '#F6FAF8' }}>
+              <TableCell>STT</TableCell>
+              <TableCell>Tiêu đề</TableCell>
+              <TableCell>Loại đơn</TableCell>
+              <TableCell>Người gửi</TableCell>
+              <TableCell>Ngày tạo</TableCell>
+              <TableCell>Trạng thái</TableCell>
+              <TableCell align="right">Thao tác</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {deniedRequests.map((request, index) => (
+              <TableRow key={request.id}>
+                <TableCell>{index + 1}</TableCell>
+                <TableCell>{request.title}</TableCell>
+                <TableCell>{request.paperType?.name}</TableCell>
+                <TableCell>{request.author?.name}</TableCell>
+                <TableCell>{new Date(request.created_date).toLocaleDateString()}</TableCell>
+                <TableCell>
+                  <Chip
+                    label="Đã từ chối"
+                    sx={{
+                      backgroundColor: '#FFE8E8',
+                      color: '#FF4D4F',
+                      fontWeight: 600,
+                    }}
+                  />
+                </TableCell>
+                <TableCell align="right">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleViewRequest(request.id)}
+                  >
+                    <VisibilityIcon />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Box>
   );
 }

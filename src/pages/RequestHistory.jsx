@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -10,47 +11,87 @@ import {
   TableHead,
   TableRow,
   Chip,
+  IconButton,
 } from '@mui/material';
+import { Visibility as VisibilityIcon } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 function RequestHistory() {
-  // Mock data - replace with actual data from your API
-  const requests = [
-    {
-      id: 1,
-      requestNumber: 'REQ-001',
-      title: 'Yêu cầu nghỉ phép',
-      status: 'Đã ký',
-      createdAt: '2024-03-20',
-      signedAt: '2024-03-21',
-    },
-    // Add more mock data as needed
-  ];
+  const navigate = useNavigate();
+  const [approvedRequests, setApprovedRequests] = useState([]);
+  const [successRequests, setSuccessRequests] = useState([]);
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        
+        // Fetch approved requests
+        const approvedResponse = await axios.get(
+          'http://localhost:8080/paper/approver/view-by-status?status=CHECKED',
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+        setApprovedRequests(approvedResponse.data);
+
+        // Fetch success requests
+        const successResponse = await axios.get(
+          'http://localhost:8080/paper/author/view-by-status?status=SUCCESS',
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+        setSuccessRequests(successResponse.data);
+      } catch (error) {
+        console.error('Error fetching requests:', error);
+        setApprovedRequests([]);
+        setSuccessRequests([]);
+      }
+    };
+
+    fetchRequests();
+  }, []);
+
+  const handleViewRequest = (requestId) => {
+    navigate(`/request/${requestId}`, { state: { from: 'history' } });
+  };
 
   return (
     <Box>
       <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, color: '#2CA068' }}>
-        Đơn đã ký
+        Đơn được duyệt
       </Typography>
       
-      <TableContainer component={Paper} sx={{ boxShadow: 'none', border: '1px solid #E6F4EF' }}>
+      <TableContainer component={Paper} sx={{ boxShadow: 'none', border: '1px solid #E6F4EF', mb: 4 }}>
         <Table>
           <TableHead>
             <TableRow sx={{ backgroundColor: '#F6FAF8' }}>
-              <TableCell>Mã đơn</TableCell>
+              <TableCell>STT</TableCell>
               <TableCell>Tiêu đề</TableCell>
-              <TableCell>Trạng thái</TableCell>
+              <TableCell>Loại đơn</TableCell>
+              <TableCell>Người gửi</TableCell>
               <TableCell>Ngày tạo</TableCell>
-              <TableCell>Ngày ký</TableCell>
+              <TableCell>Trạng thái</TableCell>
+              <TableCell align="right">Thao tác</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {requests.map((request) => (
+            {approvedRequests.map((request, index) => (
               <TableRow key={request.id}>
-                <TableCell>{request.requestNumber}</TableCell>
+                <TableCell>{index + 1}</TableCell>
                 <TableCell>{request.title}</TableCell>
+                <TableCell>{request.paperType?.name}</TableCell>
+                <TableCell>{request.author?.name}</TableCell>
+                <TableCell>{new Date(request.created_date).toLocaleDateString()}</TableCell>
                 <TableCell>
                   <Chip
-                    label={request.status}
+                    label="Đã duyệt"
                     sx={{
                       backgroundColor: '#E6F4EF',
                       color: '#2CA068',
@@ -58,8 +99,63 @@ function RequestHistory() {
                     }}
                   />
                 </TableCell>
-                <TableCell>{request.createdAt}</TableCell>
-                <TableCell>{request.signedAt}</TableCell>
+                <TableCell align="right">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleViewRequest(request.id)}
+                  >
+                    <VisibilityIcon />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, color: '#2CA068' }}>
+        Đơn đã duyệt
+      </Typography>
+      
+      <TableContainer component={Paper} sx={{ boxShadow: 'none', border: '1px solid #E6F4EF' }}>
+        <Table>
+          <TableHead>
+            <TableRow sx={{ backgroundColor: '#F6FAF8' }}>
+              <TableCell>STT</TableCell>
+              <TableCell>Tiêu đề</TableCell>
+              <TableCell>Loại đơn</TableCell>
+              <TableCell>Người gửi</TableCell>
+              <TableCell>Ngày tạo</TableCell>
+              <TableCell>Trạng thái</TableCell>
+              <TableCell align="right">Thao tác</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {successRequests.map((request, index) => (
+              <TableRow key={request.id}>
+                <TableCell>{index + 1}</TableCell>
+                <TableCell>{request.title}</TableCell>
+                <TableCell>{request.paperType?.name}</TableCell>
+                <TableCell>{request.author?.name}</TableCell>
+                <TableCell>{new Date(request.created_date).toLocaleDateString()}</TableCell>
+                <TableCell>
+                  <Chip
+                    label="Đã duyệt"
+                    sx={{
+                      backgroundColor: '#E6F4EF',
+                      color: '#2CA068',
+                      fontWeight: 600,
+                    }}
+                  />
+                </TableCell>
+                <TableCell align="right">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleViewRequest(request.id)}
+                  >
+                    <VisibilityIcon />
+                  </IconButton>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
