@@ -23,6 +23,7 @@ import { toast } from 'react-toastify';
 import axios from 'axios';
 import ArrowBack from '@mui/icons-material/ArrowBack';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import { useSignatureEmbedding } from '../hooks/useSignatureEmbedding';
 
 function RequestDetails() {
   const { id } = useParams();
@@ -36,6 +37,7 @@ function RequestDetails() {
   const [attachment, setAttachment] = useState(null);
   const isFromHistory = location.state?.from === 'history';
   const isFromCancelled = location.state?.from === 'cancelled';
+  const { embedSignatures, isEmbedding } = useSignatureEmbedding();
 
   useEffect(() => {
     const fetchRequest = async () => {
@@ -50,7 +52,7 @@ function RequestDetails() {
           }
         );
         setRequest(response.data);
-        
+        console.log(response.data)
         // Fetch attachment after getting paper data
         try {
           const attachmentResponse = await axios.get(
@@ -128,7 +130,11 @@ function RequestDetails() {
 
         if (!approveResponse.data) {
           throw new Error('Không nhận được phản hồi từ server sau khi duyệt');
+          
         }
+
+        // After successful approval, try to embed signatures
+        const signaturesEmbedded = await embedSignatures(request.id, request.author.id);
 
         toast.success('Đã duyệt đơn thành công!', {
           onClose: () => {
@@ -144,6 +150,7 @@ function RequestDetails() {
         } else if (approveError.request) {
           throw new Error('Không thể kết nối đến server để duyệt. Vui lòng kiểm tra kết nối mạng và thử lại.');
         } else {
+          console.log(approveData)
           throw new Error(`Lỗi khi gọi API duyệt: ${approveError.message}`);
         }
       }
@@ -232,7 +239,7 @@ function RequestDetails() {
         </Button>
       </Box>
 
-      {loading ? (
+      {loading || isEmbedding ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
           <CircularProgress />
         </Box>
