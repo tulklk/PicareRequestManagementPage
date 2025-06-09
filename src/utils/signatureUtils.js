@@ -93,14 +93,17 @@ export const embedSignaturesInPDF = async (pdfBytes, signatures) => {
 
       // Try to embed as image (PNG/JPG) or as PDF
       if (signature.url) {
+        console.log(`Signature ${i + 1} (name="${signature.name}"): signature.url is present.`);
         try {
           const fileId = extractFileId(signature.url);
+          console.log(`Signature ${i + 1} (name="${signature.name}"): Extracted fileId: ${fileId}`);
           const signatureBytes = await downloadPDF(fileId);
+          console.log(`Signature ${i + 1} (name="${signature.name}"): downloadPDF completed.`);
           
           // Log the first few bytes to inspect content
           console.log(`Signature ${i + 1} (name="${signature.name}") first 8 bytes:`, new Uint8Array(signatureBytes).slice(0, 8));
 
-          const fileType = getFileType(signatureBytes);
+          const fileType = await getFileType(signatureBytes);
           console.log(`Signature ${i + 1} (name="${signature.name}") detected file type: ${fileType}`);
           let image;
           let embedded = false;
@@ -141,6 +144,7 @@ export const embedSignaturesInPDF = async (pdfBytes, signatures) => {
           if (!embedded && fileType === 'pdf') {
             try {
               const sigPdfDoc = await PDFDocument.load(signatureBytes);
+              console.log(`Signature ${i + 1} (name="${signature.name}"): sigPdfDoc page count: ${sigPdfDoc.getPageCount()}`);
               const [sigPage] = await pdfDoc.copyPages(sigPdfDoc, [0]);
               lastPage.drawPage(sigPage, {
                 x: x + 10,
@@ -164,7 +168,7 @@ export const embedSignaturesInPDF = async (pdfBytes, signatures) => {
     }
     return await pdfDoc.save();
   } catch (error) {
-    console.error('Error embedding signatures:', error);
+    console.error('Error embedding signatures:', error);  
     throw new Error('Failed to embed signatures in PDF');
   }
 };
@@ -223,8 +227,35 @@ function extractFileId(urlOrId) {
 }
 
 function getFileType(bytes) {
-  if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) return 'pdf';
-  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return 'png';
-  if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) return 'jpg';
-  return 'unknown';
+  return new Promise((resolve, reject) => {
+    const arr = new Uint8Array(bytes).subarray(0, 8);
+    let headerString = "";
+    for (let i = 0; i < arr.length; i++) {
+      headerString += arr[i].toString(16).padStart(2, "0");
+    }
+
+    // Check PDF
+    if (headerString.startsWith("25504446")) {
+      resolve("pdf");
+      return;
+    }
+
+    // Check JPEG
+    if (headerString.startsWith("ffd8ffe0") ||
+        headerString.startsWith("ffd8ffe1") ||
+        headerString.startsWith("ffd8ffe2") ||
+        headerString.startsWith("ffd8ffe3") ||
+        headerString.startsWith("ffd8ffe8")) {
+      resolve("jpg");
+      return;
+    }
+
+    // Check PNG
+    if (headerString.startsWith("89504e47")) {
+      resolve("png");
+      return;
+    }
+
+    resolve("unknown");
+  });
 } 
